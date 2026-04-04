@@ -19,7 +19,6 @@ from app.models.predictor import (
     predict_climate_scenario,
     retrain_models,
 )
-from app.services.ai_service import get_ai_response
 from app.services.weather_service import (
     get_city_climate_bundle,
     get_extreme_event_summary,
@@ -41,8 +40,6 @@ from app.ui.charts import (
 )
 from app.ui.components import (
     aqi_badge,
-    chat_bubble_ai,
-    chat_bubble_user,
     inject_css,
     metric_card,
     prediction_result_card,
@@ -67,11 +64,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 inject_css()
-
-
-def _init_session() -> None:
-    if "chat_history" not in st.session_state:
-        st.session_state["chat_history"] = []
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -103,8 +95,6 @@ def _plot_chart(fig, mobile_layout: bool) -> None:
         fig.update_layout(height=max(220, int(current_height * 0.82)), margin=dict(t=36, b=18, l=12, r=12))
     st.plotly_chart(fig, width="stretch")
 
-
-_init_session()
 params = render_sidebar()
 mobile_layout = bool(params.get("mobile_layout", False))
 
@@ -197,13 +187,12 @@ metric_cards = [
 ]
 _render_metric_grid(metric_cards, columns_per_row=2 if mobile_layout else 6)
 
-tab_dash, tab_eda, tab_forecast, tab_models, tab_ai, tab_report = st.tabs(
+tab_dash, tab_eda, tab_forecast, tab_models, tab_report = st.tabs(
     [
         "Dashboard",
         "EDA",
         "Forecasting",
         "Scenario and Models",
-        "AI Assistant",
         "Report",
     ]
 )
@@ -287,31 +276,6 @@ with tab_models:
 
     _plot_chart(build_model_metrics_chart(metrics_df), mobile_layout)
     st.dataframe(metrics_df, width="stretch")
-
-with tab_ai:
-    section_header("AI", "Climate Research Assistant")
-    if Config.validate():
-        st.info("Set OPENAI_API_KEY in your existing environment to enable assistant responses.")
-
-    for msg in st.session_state["chat_history"]:
-        if msg["role"] == "user":
-            chat_bubble_user(msg["content"])
-        else:
-            chat_bubble_ai(msg["content"])
-
-    prompt = st.chat_input("Ask about trends, uncertainty, and climate science...")
-    if prompt and prompt.strip():
-        history = [m for m in st.session_state["chat_history"] if m["role"] in ("user", "assistant")]
-        st.session_state["chat_history"].append({"role": "user", "content": prompt.strip()})
-        with st.spinner("Generating response..."):
-            answer = get_ai_response(prompt.strip(), history)
-        st.session_state["chat_history"].append({"role": "assistant", "content": answer})
-        st.session_state["chat_history"] = st.session_state["chat_history"][-(Config.MAX_CHAT_HISTORY * 2):]
-        st.rerun()
-
-    if st.button("Clear chat", width="content"):
-        st.session_state["chat_history"] = []
-        st.rerun()
 
 with tab_report:
     section_header("Report", "Export Climate Intelligence Summary")
