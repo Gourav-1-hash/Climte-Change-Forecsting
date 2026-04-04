@@ -40,6 +40,12 @@ class Config:
     # --- Analysis defaults ---
     DEFAULT_HISTORY_YEARS: int = int(os.getenv("DEFAULT_HISTORY_YEARS", "15"))
     DEFAULT_FORECAST_DAYS: int = int(os.getenv("DEFAULT_FORECAST_DAYS", "30"))
+    ENABLE_CLIENT_IP_CITY_DETECTION: bool = os.getenv("ENABLE_CLIENT_IP_CITY_DETECTION", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     ENABLE_BROWSER_GEOLOCATION: bool = os.getenv("ENABLE_BROWSER_GEOLOCATION", "true").strip().lower() in {
         "1",
         "true",

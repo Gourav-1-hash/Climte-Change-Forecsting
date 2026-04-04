@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from datetime import date, timedelta
 from typing import Any, Dict, Optional
 
@@ -44,6 +45,56 @@ def detect_network_city() -> Optional[str]:
                 return f"{city}, {country}" if country else city
         except Exception:
             continue
+    return None
+
+
+def _is_public_ip(ip_value: str) -> bool:
+    """Validate that an IP string is public/routable."""
+    try:
+        ip_obj = ipaddress.ip_address(ip_value)
+        return not (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        )
+    except ValueError:
+        return False
+
+
+def get_city_from_ip(ip_value: str) -> Optional[str]:
+    """Resolve city from a public client IP address using free geolocation providers."""
+    if not ip_value:
+        return None
+
+    candidate_ip = ip_value.strip()
+    if not _is_public_ip(candidate_ip):
+        return None
+
+    providers = [
+        f"https://ipapi.co/{candidate_ip}/json/",
+        f"https://ipwho.is/{candidate_ip}",
+    ]
+    headers = {"User-Agent": "climate-forecasting-hub/2.0"}
+
+    for url in providers:
+        try:
+            response = requests.get(url, headers=headers, timeout=5)
+            response.raise_for_status()
+            payload = response.json()
+
+            if "ipwho.is" in url and payload.get("success") is False:
+                continue
+
+            city = str(payload.get("city") or "").strip()
+            country = str(payload.get("country_name") or payload.get("country") or "").strip()
+            if city:
+                return f"{city}, {country}" if country else city
+        except Exception:
+            continue
+
     return None
 
 

@@ -85,8 +85,28 @@ def _fmt_temp(value_c: float, unit: str) -> str:
     return f"{celsius_to_fahrenheit(float(value_c)):.1f} F" if unit == "Fahrenheit" else f"{float(value_c):.1f} C"
 
 
+def _render_metric_grid(cards: list[tuple[str, str, str, str]], columns_per_row: int) -> None:
+    """Render metric cards in rows with a variable column count."""
+    columns_per_row = max(1, int(columns_per_row))
+    for start in range(0, len(cards), columns_per_row):
+        row_cards = cards[start : start + columns_per_row]
+        row_cols = st.columns(len(row_cards))
+        for col, (icon, label, value, sub) in zip(row_cols, row_cards):
+            with col:
+                metric_card(icon, label, value, sub)
+
+
+def _plot_chart(fig, mobile_layout: bool) -> None:
+    """Render Plotly chart with compact height on mobile layouts."""
+    if mobile_layout:
+        current_height = int(getattr(fig.layout, "height", 320) or 320)
+        fig.update_layout(height=max(220, int(current_height * 0.82)), margin=dict(t=36, b=18, l=12, r=12))
+    st.plotly_chart(fig, width="stretch")
+
+
 _init_session()
 params = render_sidebar()
+mobile_layout = bool(params.get("mobile_layout", False))
 
 if not params["city"]:
     st.info("Enter a city in the sidebar to start.")
@@ -146,12 +166,12 @@ forecast_summary = {
 
 st.markdown(
     f"""
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
       <div>
-        <h1 style="margin:0; font-size:2.2rem;">Climate Change Forecasting Lab</h1>
+                <h1 style="margin:0; font-size:{'1.6rem' if mobile_layout else '2.2rem'};">Climate Change Forecasting Lab</h1>
         <div style="color:#9ab8bc; font-size:0.9rem;">Exploratory analysis, time-series forecasting, ML prediction, and deep pattern recognition</div>
       </div>
-      <div style="text-align:right; color:#9ab8bc; font-size:0.82rem;">
+            <div style="text-align:{'left' if mobile_layout else 'right'}; color:#9ab8bc; font-size:0.82rem;">
         {city_info['name']}, {city_info['country']}<br>
         Updated: {current_timestamp()}
       </div>
@@ -167,19 +187,15 @@ wx_code = int(current.get("weathercode", 0) or 0)
 wx_icon = get_weather_icon(wx_code)
 wx_desc = get_weather_description(wx_code)
 
-c1, c2, c3, c4, c5, c6 = st.columns(6)
-with c1:
-    metric_card("Temp", "Current temp", _fmt_temp(current.get("temperature_2m"), params["unit"]), wx_desc)
-with c2:
-    metric_card("AQI", "Air quality", str(int(aqi_value)), aqi_label)
-with c3:
-    metric_card("Rain", "Avg rainfall", f"{summary['avg_precip']:.2f} mm", "Daily mean")
-with c4:
-    metric_card("Anom", "Avg anomaly", f"{summary['avg_anomaly']:.2f} C", "Vs local baseline")
-with c5:
-    metric_card("Risk", "Scenario risk", f"{scenario['climate_risk_score']:.1f}", risk_label(scenario["climate_risk_score"]))
-with c6:
-    metric_card("WX", "Weather", wx_icon, _fmt_temp(current.get("apparent_temperature"), params["unit"]))
+metric_cards = [
+    ("Temp", "Current temp", _fmt_temp(current.get("temperature_2m"), params["unit"]), wx_desc),
+    ("AQI", "Air quality", str(int(aqi_value)), aqi_label),
+    ("Rain", "Avg rainfall", f"{summary['avg_precip']:.2f} mm", "Daily mean"),
+    ("Anom", "Avg anomaly", f"{summary['avg_anomaly']:.2f} C", "Vs local baseline"),
+    ("Risk", "Scenario risk", f"{scenario['climate_risk_score']:.1f}", risk_label(scenario["climate_risk_score"])),
+    ("WX", "Weather", wx_icon, _fmt_temp(current.get("apparent_temperature"), params["unit"])),
+]
+_render_metric_grid(metric_cards, columns_per_row=2 if mobile_layout else 6)
 
 tab_dash, tab_eda, tab_forecast, tab_models, tab_ai, tab_report = st.tabs(
     [
@@ -194,49 +210,61 @@ tab_dash, tab_eda, tab_forecast, tab_models, tab_ai, tab_report = st.tabs(
 
 with tab_dash:
     section_header("Now", "Live Climate Snapshot")
-    left, right = st.columns([1.2, 1])
-    with left:
-        trend_df = get_temperature_trend_df(weather)
-        if not trend_df.empty:
-            st.plotly_chart(build_temperature_trend(trend_df, city_info["name"]), width="stretch")
-    with right:
-        st.plotly_chart(build_aqi_gauge(aqi_value), width="stretch")
-        aqi_badge(aqi_label, aqi_color, aqi_desc)
+    trend_df = get_temperature_trend_df(weather)
 
-    c_aqi, c_rad = st.columns([2, 1])
-    with c_aqi:
-        st.plotly_chart(build_aqi_trend(aqi.get("hourly", {})), width="stretch")
-    with c_rad:
-        st.plotly_chart(build_pollutant_radar(aqi.get("hourly", {})), width="stretch")
+    if mobile_layout:
+        if not trend_df.empty:
+            _plot_chart(build_temperature_trend(trend_df, city_info["name"]), mobile_layout)
+        _plot_chart(build_aqi_gauge(aqi_value), mobile_layout)
+        aqi_badge(aqi_label, aqi_color, aqi_desc)
+        _plot_chart(build_aqi_trend(aqi.get("hourly", {})), mobile_layout)
+        _plot_chart(build_pollutant_radar(aqi.get("hourly", {})), mobile_layout)
+    else:
+        left, right = st.columns([1.2, 1])
+        with left:
+            if not trend_df.empty:
+                _plot_chart(build_temperature_trend(trend_df, city_info["name"]), mobile_layout)
+        with right:
+            _plot_chart(build_aqi_gauge(aqi_value), mobile_layout)
+            aqi_badge(aqi_label, aqi_color, aqi_desc)
+
+        c_aqi, c_rad = st.columns([2, 1])
+        with c_aqi:
+            _plot_chart(build_aqi_trend(aqi.get("hourly", {})), mobile_layout)
+        with c_rad:
+            _plot_chart(build_pollutant_radar(aqi.get("hourly", {})), mobile_layout)
 
 with tab_eda:
     section_header("EDA", "Exploratory Data Analysis")
-    st.plotly_chart(build_long_term_trend(climate_df), width="stretch")
+    _plot_chart(build_long_term_trend(climate_df), mobile_layout)
 
-    eda_col1, eda_col2 = st.columns(2)
-    with eda_col1:
-        st.plotly_chart(build_seasonality_heatmap(climate_df), width="stretch")
-    with eda_col2:
-        st.plotly_chart(build_correlation_heatmap(climate_df), width="stretch")
+    if mobile_layout:
+        _plot_chart(build_seasonality_heatmap(climate_df), mobile_layout)
+        _plot_chart(build_correlation_heatmap(climate_df), mobile_layout)
+    else:
+        eda_col1, eda_col2 = st.columns(2)
+        with eda_col1:
+            _plot_chart(build_seasonality_heatmap(climate_df), mobile_layout)
+        with eda_col2:
+            _plot_chart(build_correlation_heatmap(climate_df), mobile_layout)
 
     extremes = get_extreme_event_summary(climate_df)
-    st.plotly_chart(build_extreme_events_chart(extremes), width="stretch")
+    _plot_chart(build_extreme_events_chart(extremes), mobile_layout)
 
-    st.dataframe(climate_df.tail(40), width="stretch", height=260)
+    st.dataframe(climate_df.tail(40), width="stretch", height=200 if mobile_layout else 260)
 
 with tab_forecast:
     section_header("Forecast", f"{params['forecast_days']}-Day Time-Series Forecast")
-    st.plotly_chart(build_forecast_plot(climate_df.tail(240), temp_fc, "temp_mean", "Temperature (C)"), width="stretch")
-    st.plotly_chart(build_forecast_plot(climate_df.tail(240), rain_fc, "precipitation", "Rainfall (mm/day)"), width="stretch")
-    st.plotly_chart(build_forecast_plot(climate_df.tail(240), aqi_fc, "aqi_proxy", "AQI Proxy"), width="stretch")
+    _plot_chart(build_forecast_plot(climate_df.tail(240), temp_fc, "temp_mean", "Temperature (C)"), mobile_layout)
+    _plot_chart(build_forecast_plot(climate_df.tail(240), rain_fc, "precipitation", "Rainfall (mm/day)"), mobile_layout)
+    _plot_chart(build_forecast_plot(climate_df.tail(240), aqi_fc, "aqi_proxy", "AQI Proxy"), mobile_layout)
 
-    fc1, fc2, fc3 = st.columns(3)
-    with fc1:
-        metric_card("Temp", "Forecast temp avg", f"{forecast_summary['temp_mean']} C")
-    with fc2:
-        metric_card("Rain", "Forecast rain avg", f"{forecast_summary['rain_mean']} mm")
-    with fc3:
-        metric_card("AQI", "Forecast AQI avg", str(forecast_summary["aqi_mean"]))
+    forecast_cards = [
+        ("Temp", "Forecast temp avg", f"{forecast_summary['temp_mean']} C", ""),
+        ("Rain", "Forecast rain avg", f"{forecast_summary['rain_mean']} mm", ""),
+        ("AQI", "Forecast AQI avg", str(forecast_summary["aqi_mean"]), ""),
+    ]
+    _render_metric_grid(forecast_cards, columns_per_row=1 if mobile_layout else 3)
 
 with tab_models:
     section_header("Scenario", "ML and Deep Climate Pattern Projection")
@@ -247,13 +275,17 @@ with tab_models:
         year=params["year"],
     )
 
-    m1, m2 = st.columns([1.1, 1])
-    with m1:
-        st.plotly_chart(build_scenario_result_chart(scenario), width="stretch")
-    with m2:
-        st.plotly_chart(build_feature_importance(get_feature_importance()), width="stretch")
+    if mobile_layout:
+        _plot_chart(build_scenario_result_chart(scenario), mobile_layout)
+        _plot_chart(build_feature_importance(get_feature_importance()), mobile_layout)
+    else:
+        m1, m2 = st.columns([1.1, 1])
+        with m1:
+            _plot_chart(build_scenario_result_chart(scenario), mobile_layout)
+        with m2:
+            _plot_chart(build_feature_importance(get_feature_importance()), mobile_layout)
 
-    st.plotly_chart(build_model_metrics_chart(metrics_df), width="stretch")
+    _plot_chart(build_model_metrics_chart(metrics_df), mobile_layout)
     st.dataframe(metrics_df, width="stretch")
 
 with tab_ai:
