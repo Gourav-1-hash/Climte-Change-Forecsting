@@ -34,5 +34,5 @@ env/
 Thumbs.db
 
 # Streamlit
-.streamlit/
+.streamlit
 .env.example

@@ -39,6 +39,12 @@ class Config:
     # --- Analysis defaults ---
     DEFAULT_HISTORY_YEARS: int = int(os.getenv("DEFAULT_HISTORY_YEARS", "15"))
     DEFAULT_FORECAST_DAYS: int = int(os.getenv("DEFAULT_FORECAST_DAYS", "30"))
+    ENABLE_NETWORK_CITY_DETECTION: bool = os.getenv("ENABLE_NETWORK_CITY_DETECTION", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     # --- AQI Thresholds ---
     AQI_LEVELS = {

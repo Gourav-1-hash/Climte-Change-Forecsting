@@ -19,7 +19,7 @@ SCENARIO_DEFAULTS = {
 
 def _init_sidebar_state() -> None:
     if "detected_default_city" not in st.session_state:
-        detected = detect_network_city()
+        detected = detect_network_city() if Config.ENABLE_NETWORK_CITY_DETECTION else None
         st.session_state["detected_default_city"] = detected or Config.DEFAULT_CITY
         st.session_state["detected_city_source"] = "network" if detected else "config"
 
