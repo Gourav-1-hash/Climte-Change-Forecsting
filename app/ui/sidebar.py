@@ -26,6 +26,8 @@ SCENARIO_DEFAULTS = {
 
 def _detect_browser_city() -> str | None:
     """Get user city from browser geolocation permission and reverse geocoding."""
+    st.session_state["browser_geo_error"] = ""
+
     if not Config.ENABLE_BROWSER_GEOLOCATION:
         st.session_state["browser_geo_status"] = "disabled"
         return None
@@ -39,7 +41,12 @@ def _detect_browser_city() -> str | None:
         return None
 
     try:
-        geo_payload = get_geolocation(key="USER_BROWSER_GEOLOCATION")
+        try:
+            # Newer releases expose get_geolocation() without a key argument.
+            geo_payload = get_geolocation()
+        except TypeError:
+            # Backward compatibility for older signatures that expect key.
+            geo_payload = get_geolocation(key="USER_BROWSER_GEOLOCATION")
     except Exception as exc:
         st.session_state["browser_geo_status"] = "error"
         st.session_state["browser_geo_error"] = str(exc)
