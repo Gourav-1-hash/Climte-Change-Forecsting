@@ -141,6 +141,51 @@ button[data-baseweb="tab"][aria-selected="true"] {
     border-bottom-color: #66f0f4 !important;
 }
 
+@media (max-width: 992px) {
+    .block-container {
+        padding-top: 0.8rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+    }
+
+    .metric-card {
+        min-height: 102px;
+        padding: 12px 10px;
+    }
+
+    .metric-value {
+        font-size: 1.35rem;
+    }
+
+    .metric-label {
+        font-size: 0.68rem;
+    }
+
+    .section-header-text {
+        font-size: 0.94rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .chat-user {
+        margin-left: 0;
+    }
+
+    .chat-ai {
+        margin-right: 0;
+    }
+
+    button[data-baseweb="tab"] {
+        font-size: 0.78rem !important;
+        padding: 8px 10px !important;
+    }
+
+    div[data-baseweb="tab-list"] {
+        overflow-x: auto !important;
+        scrollbar-width: thin;
+    }
+}
+
 #MainMenu, footer, header {
     visibility: hidden;
 }

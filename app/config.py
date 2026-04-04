@@ -21,6 +21,7 @@ class Config:
 
     # --- Open-Meteo API (no key required) ---
     GEOCODING_API: str = "https://geocoding-api.open-meteo.com/v1/search"
+    GEOCODING_REVERSE_API: str = "https://geocoding-api.open-meteo.com/v1/reverse"
     WEATHER_API: str = "https://api.open-meteo.com/v1/forecast"
 
     # --- Open-Meteo Air Quality API (no key required) ---
@@ -39,6 +40,12 @@ class Config:
     # --- Analysis defaults ---
     DEFAULT_HISTORY_YEARS: int = int(os.getenv("DEFAULT_HISTORY_YEARS", "15"))
     DEFAULT_FORECAST_DAYS: int = int(os.getenv("DEFAULT_FORECAST_DAYS", "30"))
+    ENABLE_BROWSER_GEOLOCATION: bool = os.getenv("ENABLE_BROWSER_GEOLOCATION", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     ENABLE_NETWORK_CITY_DETECTION: bool = os.getenv("ENABLE_NETWORK_CITY_DETECTION", "false").strip().lower() in {
         "1",
         "true",

@@ -68,6 +68,46 @@ def get_coordinates(city: str) -> Optional[Dict[str, Any]]:
     }
 
 
+def reverse_geocode(latitude: float, longitude: float) -> Optional[Dict[str, Any]]:
+    """Resolve latitude and longitude into a nearest city using Open-Meteo reverse geocoding."""
+    payload = _safe_json_get(
+        Config.GEOCODING_REVERSE_API,
+        {
+            "latitude": latitude,
+            "longitude": longitude,
+            "count": 1,
+            "language": "en",
+            "format": "json",
+        },
+        timeout=10,
+    )
+    results = payload.get("results", [])
+    if not results:
+        return None
+
+    row = results[0]
+    return {
+        "name": row.get("name", ""),
+        "country": row.get("country", ""),
+        "latitude": float(row.get("latitude", latitude)),
+        "longitude": float(row.get("longitude", longitude)),
+        "timezone": row.get("timezone", "auto"),
+    }
+
+
+def get_city_from_coordinates(latitude: float, longitude: float) -> Optional[str]:
+    """Return a city label from coordinates in the form 'City, Country'."""
+    location = reverse_geocode(latitude, longitude)
+    if not location:
+        return None
+
+    city = str(location.get("name", "")).strip()
+    country = str(location.get("country", "")).strip()
+    if not city:
+        return None
+    return f"{city}, {country}" if country else city
+
+
 def get_weather(lat: float, lon: float, timezone: str = "auto") -> Dict[str, Any]:
     """Fetch current and hourly weather forecast data."""
     params = {
