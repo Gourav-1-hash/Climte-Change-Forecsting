@@ -7,14 +7,7 @@ import datetime as dt
 import streamlit as st
 
 from app.config import Config
-from app.services.weather_service import detect_network_city, get_city_from_coordinates
-
-try:
-    from streamlit_js_eval import get_geolocation
-
-    _HAS_BROWSER_GEOLOCATION = True
-except Exception:
-    _HAS_BROWSER_GEOLOCATION = False
+from app.services.weather_service import detect_network_city, get_city_from_ip
 
 
 SCENARIO_DEFAULTS = {
@@ -24,69 +17,67 @@ SCENARIO_DEFAULTS = {
 }
 
 
-def _detect_browser_city() -> str | None:
-    """Get user city from browser geolocation permission and reverse geocoding."""
-    st.session_state["browser_geo_error"] = ""
+def _extract_client_ip() -> str | None:
+    """Extract end-user IP from proxy headers when available."""
+    try:
+        context = getattr(st, "context", None)
+        if context is None or not hasattr(context, "headers"):
+            return None
 
-    if not Config.ENABLE_BROWSER_GEOLOCATION:
-        st.session_state["browser_geo_status"] = "disabled"
+        raw_headers = dict(context.headers)
+        headers = {str(k).lower(): str(v) for k, v in raw_headers.items()}
+        keys = (
+            "x-forwarded-for",
+            "cf-connecting-ip",
+            "x-real-ip",
+            "true-client-ip",
+            "x-client-ip",
+        )
+
+        for key in keys:
+            value = headers.get(key, "").strip()
+            if not value:
+                continue
+            ip_value = value.split(",")[0].strip() if key == "x-forwarded-for" else value
+            if ip_value and ip_value.lower() != "unknown":
+                return ip_value
+    except Exception:
+        return None
+    return None
+
+
+def _detect_client_ip_city() -> str | None:
+    """Detect default city using user IP from request headers without browser permission."""
+    st.session_state["client_ip_error"] = ""
+
+    if not Config.ENABLE_CLIENT_IP_CITY_DETECTION:
+        st.session_state["client_ip_status"] = "disabled"
         return None
 
-    if st.session_state.get("browser_geo_city"):
-        st.session_state["browser_geo_status"] = "ok"
-        return st.session_state["browser_geo_city"]
+    if st.session_state.get("client_ip_city"):
+        st.session_state["client_ip_status"] = "ok"
+        return st.session_state["client_ip_city"]
 
-    if not _HAS_BROWSER_GEOLOCATION:
-        st.session_state["browser_geo_status"] = "missing-component"
+    ip_address = _extract_client_ip()
+    if not ip_address:
+        st.session_state["client_ip_status"] = "unavailable"
         return None
+
+    st.session_state["client_ip_value"] = ip_address
 
     try:
-        try:
-            # Newer releases expose get_geolocation() without a key argument.
-            geo_payload = get_geolocation()
-        except TypeError:
-            # Backward compatibility for older signatures that expect key.
-            geo_payload = get_geolocation(key="USER_BROWSER_GEOLOCATION")
+        detected_city = get_city_from_ip(ip_address)
     except Exception as exc:
-        st.session_state["browser_geo_status"] = "error"
-        st.session_state["browser_geo_error"] = str(exc)
+        st.session_state["client_ip_status"] = "error"
+        st.session_state["client_ip_error"] = str(exc)
         return None
 
-    if not geo_payload:
-        st.session_state["browser_geo_status"] = "pending"
-        return None
+    if detected_city:
+        st.session_state["client_ip_city"] = detected_city
+        st.session_state["client_ip_status"] = "ok"
+        return detected_city
 
-    if isinstance(geo_payload, dict) and "error" in geo_payload:
-        error_info = geo_payload.get("error", {})
-        st.session_state["browser_geo_status"] = "error"
-        st.session_state["browser_geo_error"] = str(error_info.get("message", "Location permission denied or unavailable."))
-        return None
-
-    coords = geo_payload.get("coords", {}) if isinstance(geo_payload, dict) else {}
-    latitude = coords.get("latitude")
-    longitude = coords.get("longitude")
-    if latitude is None or longitude is None:
-        st.session_state["browser_geo_status"] = "pending"
-        return None
-
-    st.session_state["browser_geo_coords"] = {
-        "latitude": float(latitude),
-        "longitude": float(longitude),
-    }
-
-    try:
-        browser_city = get_city_from_coordinates(float(latitude), float(longitude))
-    except Exception as exc:
-        st.session_state["browser_geo_status"] = "error"
-        st.session_state["browser_geo_error"] = str(exc)
-        return None
-
-    if browser_city:
-        st.session_state["browser_geo_city"] = browser_city
-        st.session_state["browser_geo_status"] = "ok"
-        return browser_city
-
-    st.session_state["browser_geo_status"] = "reverse-empty"
+    st.session_state["client_ip_status"] = "empty"
     return None
 
 
@@ -118,10 +109,10 @@ def _init_sidebar_state() -> None:
         st.session_state["detected_default_city"] = Config.DEFAULT_CITY
     if "detected_city_source" not in st.session_state:
         st.session_state["detected_city_source"] = "config"
-    if "browser_geo_status" not in st.session_state:
-        st.session_state["browser_geo_status"] = "pending"
-    if "browser_geo_error" not in st.session_state:
-        st.session_state["browser_geo_error"] = ""
+    if "client_ip_status" not in st.session_state:
+        st.session_state["client_ip_status"] = "pending"
+    if "client_ip_error" not in st.session_state:
+        st.session_state["client_ip_error"] = ""
     if "network_city_checked" not in st.session_state:
         st.session_state["network_city_checked"] = False
 
@@ -135,12 +126,12 @@ def _init_sidebar_state() -> None:
         st.session_state["mobile_layout"] = _is_mobile_client()
 
     previous_default = st.session_state["detected_default_city"]
-    browser_city = _detect_browser_city()
-    if browser_city:
-        st.session_state["detected_default_city"] = browser_city
-        st.session_state["detected_city_source"] = "browser"
+    ip_city = _detect_client_ip_city()
+    if ip_city:
+        st.session_state["detected_default_city"] = ip_city
+        st.session_state["detected_city_source"] = "client-ip"
         if st.session_state.get("city_input", "").strip() in ("", previous_default, Config.DEFAULT_CITY):
-            st.session_state["city_input"] = browser_city
+            st.session_state["city_input"] = ip_city
         return
 
     if Config.ENABLE_NETWORK_CITY_DETECTION and not st.session_state.get("network_city_checked", False):
@@ -170,15 +161,15 @@ def render_sidebar() -> dict:
         )
 
         st.markdown("### Location")
-        if st.session_state.get("detected_city_source") == "browser":
-            st.caption(f"Using your device location: {st.session_state['detected_default_city']}")
+        if st.session_state.get("detected_city_source") == "client-ip":
+            st.caption(f"Auto-detected from your network: {st.session_state['detected_default_city']}")
         elif st.session_state.get("detected_city_source") == "network":
-            st.caption(f"Auto-detected: {st.session_state['detected_default_city']}")
-        elif Config.ENABLE_BROWSER_GEOLOCATION and st.session_state.get("browser_geo_status") == "pending":
-            st.caption("Allow browser location permission to auto-set your city.")
+            st.caption(f"Fallback auto-detected: {st.session_state['detected_default_city']}")
+        elif st.session_state.get("client_ip_status") in {"pending", "unavailable", "empty"}:
+            st.caption(f"Using default city: {Config.DEFAULT_CITY}")
 
-        if st.session_state.get("browser_geo_error"):
-            st.caption(f"Location detection issue: {st.session_state['browser_geo_error']}")
+        if st.session_state.get("client_ip_error"):
+            st.caption(f"Location detection issue: {st.session_state['client_ip_error']}")
 
         city = st.text_input("City", key="city_input", placeholder="e.g. Delhi, London, Nairobi")
 
