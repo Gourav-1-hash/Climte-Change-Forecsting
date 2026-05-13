@@ -69,7 +69,7 @@ def generate_climate_report(
     body = ParagraphStyle("body", parent=styles["Normal"], fontSize=9, leading=13)
 
     elements = []
-    elements.append(Paragraph("Climate Change Forecasting Report", title))
+    elements.append(Paragraph("Lab Report", title))
     elements.append(Paragraph(f"{city_info.get('name', 'Unknown')}, {city_info.get('country', '')}", subtitle))
     elements.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", subtitle))
     elements.append(Spacer(1, 10))
